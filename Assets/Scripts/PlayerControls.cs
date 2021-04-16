@@ -8,38 +8,51 @@ using System;
 
 public class PlayerControls : MonoBehaviour
 {
+    public Animator animator;
+
     private Rigidbody2D rigidbody2D;
     public float playerSpeed;
-    public float playerWidth;
+    public float playerJumpForce;
+    private float playerHalfWidth;
+    private float playerHalfHeight;
     public Transform playerCenterOfMass;
 
     private Camera camera;
 
     private Touch theTouch;
 
-    //test
-    public Text directionText;
-    private string directionString;
-    //test
+    private LineRenderer lineRenderer;
 
-    // Start is called before the first frame update
+    public GameObject playerAimPrefab;
+    private GameObject playerAim;
+
+    private bool isShooting;
+
+    private bool isLanded;
+    public LayerMask isPlatform;
+
     void Start()
     {
         rigidbody2D = GetComponent<Rigidbody2D>();
-        playerWidth = GetComponent<SpriteRenderer>().bounds.extents.x;
+        playerHalfWidth = GetComponent<SpriteRenderer>().bounds.extents.x;
+        playerHalfHeight = GetComponent<SpriteRenderer>().bounds.extents.y;
 
         rigidbody2D.centerOfMass = new Vector2(playerCenterOfMass.localPosition.x, playerCenterOfMass.localPosition.y);
 
         camera = Camera.main;
     }
 
-    // Update is called once per frame
     void FixedUpdate()
     {
+        isLanded = Physics2D.OverlapCircle(playerCenterOfMass.position, 0.5f, isPlatform);
+        animator.SetBool("IsLanded", isLanded);
+        animator.SetFloat("PlayerVelocity", Mathf.Abs(rigidbody2D.velocity.x));
+
         MovePlayer();
+        MovePlayerPCTest();
     }
 
-    void MovePlayer()
+    private void MovePlayer()
     {
         if (Input.touchCount > 0)
         {
@@ -47,33 +60,82 @@ public class PlayerControls : MonoBehaviour
 
             if (theTouch.phase == TouchPhase.Stationary)
             {
-                if (camera.ScreenToWorldPoint(theTouch.position).x > transform.position.x + playerWidth)
+                if (camera.ScreenToWorldPoint(theTouch.position).x > transform.position.x + playerHalfWidth && !isShooting)
                 {
                     MovePlayerRight();
                 }
-                else
+
+                if (camera.ScreenToWorldPoint(theTouch.position).x < transform.position.x - playerHalfWidth && !isShooting)
                 {
-                    if (camera.ScreenToWorldPoint(theTouch.position).x < transform.position.x - playerWidth)
-                    {
-                        MovePlayerLeft();
-                    }
+                    MovePlayerLeft();
+                }
+
+                if (camera.ScreenToWorldPoint(theTouch.position).x <= transform.position.x + playerHalfWidth &&
+                    camera.ScreenToWorldPoint(theTouch.position).x >= transform.position.x - playerHalfWidth &&
+                    camera.ScreenToWorldPoint(theTouch.position).y <= transform.position.y + playerHalfHeight &&
+                    camera.ScreenToWorldPoint(theTouch.position).y >= transform.position.y - playerHalfHeight && !playerAim)
+                {
+                    CreatePlayerAim();
+                }
+            }
+
+            if (theTouch.phase == TouchPhase.Moved && isShooting)
+            {
+                playerAim.transform.Translate(Time.fixedDeltaTime * 3, 0, 0);
+            }
+
+            if (theTouch.phase == TouchPhase.Ended && isShooting)
+            {
+                Destroy(playerAim);
+                isShooting = false;
+            }
+        }
+
+    }
+
+    private void MovePlayerPCTest()
+    {
+        if (Input.GetKey(KeyCode.A))
+        {
+            MovePlayerLeft();
+        }
+        else
+        {
+            if (Input.GetKey(KeyCode.D))
+            {
+                MovePlayerRight();
+            }
+            else
+            {
+                if (Input.GetKeyDown(KeyCode.Space) && isLanded)
+                {
+                    JumpPlayer();
                 }
             }
         }
+
     }
 
     private void MovePlayerLeft()
     {
-        transform.Translate(-Time.deltaTime * playerSpeed, 0, 0);
+        transform.rotation = new Quaternion(0, 180f, 0, 0);
+        rigidbody2D.velocity = new Vector2(-playerSpeed, 0);
     }
 
     private void MovePlayerRight()
     {
-        transform.Translate(Time.deltaTime * playerSpeed, 0, 0);
+        transform.rotation = new Quaternion(0, 0, 0, 0);
+        rigidbody2D.velocity = new Vector2(playerSpeed, 0);
     }
 
     private void JumpPlayer()
     {
-        rigidbody2D.AddForce(new Vector2(0, 5f), ForceMode2D.Impulse);
+        rigidbody2D.AddForce(Vector2.up * playerJumpForce, ForceMode2D.Impulse);
+    }
+
+    private void CreatePlayerAim()
+    {
+        playerAim = Instantiate(playerAimPrefab, transform.position, Quaternion.identity);
+        isShooting = true;
     }
 }
